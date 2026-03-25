@@ -1,0 +1,44 @@
+when:
+  - event: push
+    branch: main
+  - event: tag
+
+steps:
+  - name: test
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    commands:
+      - dotnet restore src/Loggles.Tests/Loggles.Tests.csproj
+      - dotnet test src/Loggles.Tests/Loggles.Tests.csproj --configuration Release --no-restore
+
+  - name: build-and-push-latest
+    image: woodpeckerci/plugin-kaniko
+    settings:
+      registry: ghcr.io
+      repo: ghcr.io/bytesquashcom/loggles
+      username:
+        from_secret: GITHUB_USERNAME
+      password:
+        from_secret: GITHUB_TOKEN
+      dockerfile: src/Dockerfile
+      context: src/
+      tags: latest
+    when:
+      - event: push
+        branch: main
+
+  - name: build-and-push-release
+    image: woodpeckerci/plugin-kaniko
+    settings:
+      registry: ghcr.io
+      repo: ghcr.io/bytesquashcom/loggles
+      username:
+        from_secret: GITHUB_USERNAME
+      password:
+        from_secret: GITHUB_TOKEN
+      dockerfile: src/Dockerfile
+      context: src/
+      auto_tag: true
+    when:
+      - event: tag

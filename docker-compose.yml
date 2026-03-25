@@ -1,0 +1,33 @@
+services:
+  loggles:
+    image: ghcr.io/bytesquashcom/loggles:latest
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - loggles-data:/data
+    environment:
+      LOGGLES__AUTH__APIKEY: ""  # REQUIRED: set a strong API key
+      Storage__Provider: "postgres"
+      Storage__ConnectionString: "Host=postgres;Database=loggles;Username=loggles;Password=${POSTGRES_PASSWORD:-changeme}"
+      Retention__Hours: "48"
+      Retention__PurgeIntervalMinutes: "15"
+      Mcp__Enabled: "true"
+      Mcp__OAuthEnabled: "true"   # set to true to require OAuth for MCP
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: loggles
+      POSTGRES_USER: loggles
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  loggles-data:
+  postgres-data:

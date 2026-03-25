@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <Authors>bytesquashcom</Authors>
+    <Copyright>Copyright © 2026 bytesquashcom</Copyright>
+    <RepositoryUrl>https://github.com/bytesquashcom/Loggles</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <!-- MinVer: floor version when no tag is present (e.g. 0.5.0-dev.3) -->
+    <MinVerMinimumMajorMinor>0.5</MinVerMinimumMajorMinor>
+    <MinVerDefaultPreReleaseIdentifiers>dev</MinVerDefaultPreReleaseIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MinVer" Version="6.0.0" PrivateAssets="All" />
+  </ItemGroup>
+</Project>

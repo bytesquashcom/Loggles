@@ -1,0 +1,39 @@
+services:
+  loggles:
+    image: ghcr.io/bytesquashcom/loggles:latest
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - loggles-data:/data
+    environment:
+      # SQLite (default) — comment out and use postgres block below to switch
+      Storage__Provider: "sqlite"
+      Storage__ConnectionString: "Data Source=/data/logs.db"
+      # In-memory SQLite (no persistence, resets on restart — remove the volume mount too):
+      # Storage__ConnectionString: "Data Source=:memory:Cache=Shared"
+      Retention__Hours: "48"
+      Retention__PurgeIntervalMinutes: "15"
+      LOGGLES__AUTH__APIKEY: ""  # REQUIRED: set a strong API key
+      Mcp__Enabled: "true"
+      Mcp__OAuthEnabled: "false"   # set to true to require OAuth for MCP
+    restart: unless-stopped
+
+  # PostgreSQL provider — uncomment this block and update loggles environment above:
+  #   Storage__Provider: "postgres"
+  #   Storage__ConnectionString: "Host=postgres;Database=loggles;Username=loggles;Password=changeme"
+  # postgres:
+  #   image: postgres:17-alpine
+  #   environment:
+  #     POSTGRES_DB: loggles
+  #     POSTGRES_USER: loggles
+  #     POSTGRES_PASSWORD: changeme
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   restart: unless-stopped
+
+volumes:
+  loggles-data:
+  # postgres-data:

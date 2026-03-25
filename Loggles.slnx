@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="src/Loggles.Api/Loggles.Api.csproj" />
+  <Project Path="src/Loggles.Core/Loggles.Core.csproj" />
+  <Project Path="src/Loggles.Infrastructure/Loggles.Infrastructure.csproj" />
+  <Project Path="src/Loggles.Tests/Loggles.Tests.csproj" />
+  <Project Path="src/Loggles.Demo.Otel/Loggles.Demo.Otel.csproj" />
+</Solution>

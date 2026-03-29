@@ -58,12 +58,12 @@ steps:
 
   # ── GitHub Release: generate changelog + create release or pre-release ───────
   - name: github-release
-    image: ghcr.io/cli/cli:2
+    image: alpine:3.21
     environment:
       GH_TOKEN:
         from_secret: GITHUB_TOKEN
     commands:
-      - apk add --no-cache curl tar
+      - apk add --no-cache github-cli curl tar
       - |
         CLIFF_VER=2.4.0
         curl -sSL "https://github.com/orhun/git-cliff/releases/download/v${CLIFF_VER}/git-cliff-${CLIFF_VER}-x86_64-unknown-linux-musl.tar.gz" \

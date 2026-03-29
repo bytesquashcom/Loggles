@@ -58,18 +58,17 @@ steps:
 
   # ── GitHub Release: generate changelog + create release or pre-release ───────
   - name: github-release
-    image: ghcr.io/cli/cli:2
+    image: alpine:3.21
     environment:
       GH_TOKEN:
         from_secret: GITHUB_TOKEN
     commands:
-      - apk add --no-cache curl tar
-      - |
-        CLIFF_VER=2.4.0
-        curl -sSL "https://github.com/orhun/git-cliff/releases/download/v${CLIFF_VER}/git-cliff-${CLIFF_VER}-x86_64-unknown-linux-musl.tar.gz" \
-          -o /tmp/git-cliff.tar.gz
-        tar xzf /tmp/git-cliff.tar.gz -C /tmp
-        mv /tmp/git-cliff-${CLIFF_VER}-x86_64-unknown-linux-musl/git-cliff /usr/local/bin/git-cliff
+      - apk add --no-cache github-cli curl tar git
+      - curl -sSL "https://github.com/orhun/git-cliff/releases/download/v2.4.0/git-cliff-2.4.0-x86_64-unknown-linux-musl.tar.gz" -o /tmp/git-cliff.tar.gz
+      - tar xzf /tmp/git-cliff.tar.gz -C /tmp
+      - mv /tmp/git-cliff*/git-cliff /usr/local/bin/git-cliff
+      - chmod +x /usr/local/bin/git-cliff
+      - git fetch --unshallow || true
       - git-cliff --latest --output RELEASE_NOTES.md
       - |
         if echo "$CI_COMMIT_TAG" | grep -q -- "-beta"; then

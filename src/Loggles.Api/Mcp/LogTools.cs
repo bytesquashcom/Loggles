@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Text.Json;
 using Loggles.Core.DTOs;
 using Loggles.Core.Interfaces;
@@ -11,10 +12,12 @@ namespace Loggles.Api.Mcp;
 public sealed class LogTools
 {
     private readonly ILogStore _store;
+    private readonly IMcpCallTracker _tracker;
 
-    public LogTools(ILogStore store)
+    public LogTools(ILogStore store, IMcpCallTracker tracker)
     {
         _store = store;
+        _tracker = tracker;
     }
 
     [McpServerTool(Name = "search_logs"), Description("Search log events with optional filters.")]
@@ -48,33 +51,51 @@ public sealed class LogTools
             PageToken = pageToken
         };
 
+        var sw = Stopwatch.StartNew();
         var result = await _store.SearchAsync(query);
+        sw.Stop();
+        _tracker.Record(new McpCallRecord("search_logs", DateTime.UtcNow, sw.ElapsedMilliseconds, result.Items.Count()));
         return new { Items = ToResponse(result.Items), result.NextPageToken };
     }
 
     [McpServerTool(Name = "get_log_by_id"), Description("Retrieve a single log event by its ID.")]
     public async Task<object?> GetLogById([Description("The log event ID")] long id)
     {
+        var sw = Stopwatch.StartNew();
         var log = await _store.GetByIdAsync(id);
+        sw.Stop();
+        _tracker.Record(new McpCallRecord("get_log_by_id", DateTime.UtcNow, sw.ElapsedMilliseconds, log is null ? 0 : 1));
         return log is null ? null : ToResponse(log);
     }
 
     [McpServerTool(Name = "get_services"), Description("List all distinct service/source names that have emitted logs.")]
     public async Task<object> GetServices()
     {
-        return await _store.GetServicesAsync();
+        var sw = Stopwatch.StartNew();
+        var result = await _store.GetServicesAsync();
+        sw.Stop();
+        _tracker.Record(new McpCallRecord("get_services", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        return result;
     }
 
     [McpServerTool(Name = "get_log_levels"), Description("List all distinct log levels present in the store.")]
     public async Task<object> GetLogLevels()
     {
-        return await _store.GetLogLevelsAsync();
+        var sw = Stopwatch.StartNew();
+        var result = await _store.GetLogLevelsAsync();
+        sw.Stop();
+        _tracker.Record(new McpCallRecord("get_log_levels", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        return result;
     }
 
     [McpServerTool(Name = "get_properties"), Description("List all distinct property keys present across log events.")]
     public async Task<object> GetProperties()
     {
-        return await _store.GetPropertiesAsync();
+        var sw = Stopwatch.StartNew();
+        var result = await _store.GetPropertiesAsync();
+        sw.Stop();
+        _tracker.Record(new McpCallRecord("get_properties", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        return result;
     }
 
     [McpServerTool(Name = "get_log_stats"), Description("Get log counts grouped by level and source for a time window.")]
@@ -83,17 +104,25 @@ public sealed class LogTools
         [Description("End of time range (ISO 8601 UTC)")] string to,
         [Description("Filter by source/service name")] string? source = null)
     {
-        return await _store.GetStatsAsync(
+        var sw = Stopwatch.StartNew();
+        var result = await _store.GetStatsAsync(
             DateTime.Parse(from, null, System.Globalization.DateTimeStyles.RoundtripKind),
             DateTime.Parse(to, null, System.Globalization.DateTimeStyles.RoundtripKind),
             source);
+        sw.Stop();
+        _tracker.Record(new McpCallRecord("get_log_stats", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        return result;
     }
 
     [McpServerTool(Name = "get_logs_by_trace_id"), Description("Retrieve all log events sharing a trace/correlation ID, ordered by time.")]
     public async Task<object> GetLogsByTraceId(
         [Description("The trace or correlation ID")] string traceId)
     {
-        return ToResponse(await _store.GetLogsByTraceIdAsync(traceId));
+        var sw = Stopwatch.StartNew();
+        var logs = await _store.GetLogsByTraceIdAsync(traceId);
+        sw.Stop();
+        _tracker.Record(new McpCallRecord("get_logs_by_trace_id", DateTime.UtcNow, sw.ElapsedMilliseconds, logs.Count));
+        return ToResponse(logs);
     }
 
     [McpServerTool(Name = "get_related_logs"), Description("Get logs within a time window around a specific log event, useful for understanding context.")]
@@ -101,7 +130,11 @@ public sealed class LogTools
         [Description("The anchor log event ID")] long id,
         [Description("Seconds before and after the anchor event to include (default 30)")] int windowSeconds = 30)
     {
-        return ToResponse(await _store.GetRelatedLogsAsync(id, windowSeconds));
+        var sw = Stopwatch.StartNew();
+        var logs = await _store.GetRelatedLogsAsync(id, windowSeconds);
+        sw.Stop();
+        _tracker.Record(new McpCallRecord("get_related_logs", DateTime.UtcNow, sw.ElapsedMilliseconds, logs.Count));
+        return ToResponse(logs);
     }
 
     [McpServerTool(Name = "get_recent_errors"), Description("Get the most recent error and critical log events.")]
@@ -109,7 +142,11 @@ public sealed class LogTools
         [Description("Maximum number of results (default 50)")] int n = 50,
         [Description("Filter by source/service name")] string? source = null)
     {
-        return ToResponse(await _store.GetRecentErrorsAsync(n, source));
+        var sw = Stopwatch.StartNew();
+        var logs = await _store.GetRecentErrorsAsync(n, source);
+        sw.Stop();
+        _tracker.Record(new McpCallRecord("get_recent_errors", DateTime.UtcNow, sw.ElapsedMilliseconds, logs.Count));
+        return ToResponse(logs);
     }
 
     [McpServerTool(Name = "tail_logs"), Description("Get the most recent log events across all levels (like tail -f snapshot). Use from/to to scope to a specific window, e.g. post-deployment verification.")]
@@ -121,7 +158,11 @@ public sealed class LogTools
     {
         var fromDt = from is not null ? DateTime.Parse(from, null, System.Globalization.DateTimeStyles.RoundtripKind) : (DateTime?)null;
         var toDt = to is not null ? DateTime.Parse(to, null, System.Globalization.DateTimeStyles.RoundtripKind) : (DateTime?)null;
-        return ToResponse(await _store.TailLogsAsync(n, source, fromDt, toDt));
+        var sw = Stopwatch.StartNew();
+        var logs = await _store.TailLogsAsync(n, source, fromDt, toDt);
+        sw.Stop();
+        _tracker.Record(new McpCallRecord("tail_logs", DateTime.UtcNow, sw.ElapsedMilliseconds, logs.Count));
+        return ToResponse(logs);
     }
 
     [McpServerTool(Name = "get_log_rate"), Description("Get log counts bucketed by time interval to observe traffic patterns.")]
@@ -132,10 +173,14 @@ public sealed class LogTools
         [Description("Filter by source/service name")] string? source = null,
         [Description("Minimum log level (0=Trace..5=Critical)")] int? levelMin = null)
     {
-        return await _store.GetLogRateAsync(
+        var sw = Stopwatch.StartNew();
+        var result = await _store.GetLogRateAsync(
             DateTime.Parse(from, null, System.Globalization.DateTimeStyles.RoundtripKind),
             DateTime.Parse(to, null, System.Globalization.DateTimeStyles.RoundtripKind),
             bucketMinutes, source, levelMin);
+        sw.Stop();
+        _tracker.Record(new McpCallRecord("get_log_rate", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        return result;
     }
 
     [McpServerTool(Name = "find_log_patterns"), Description("Cluster log messages by pattern to surface recurring errors or frequent message types.")]
@@ -146,10 +191,14 @@ public sealed class LogTools
         [Description("Minimum log level (0=Trace..5=Critical)")] int? levelMin = null,
         [Description("Maximum number of top patterns to return (default 20)")] int topN = 20)
     {
-        return await _store.FindLogPatternsAsync(
+        var sw = Stopwatch.StartNew();
+        var result = await _store.FindLogPatternsAsync(
             DateTime.Parse(from, null, System.Globalization.DateTimeStyles.RoundtripKind),
             DateTime.Parse(to, null, System.Globalization.DateTimeStyles.RoundtripKind),
             source, levelMin, topN);
+        sw.Stop();
+        _tracker.Record(new McpCallRecord("find_log_patterns", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        return result;
     }
 
     [McpServerTool(Name = "audit_log_quality"), Description("Audit logging hygiene: reports how many logs lack a message template or structured properties, broken down by source with samples. Call early in a debug session to surface instrumentation gaps.")]
@@ -159,17 +208,25 @@ public sealed class LogTools
         [Description("Filter by source/service name")] string? source = null,
         [Description("Number of sample logs without a template to include (default 5)")] int sampleSize = 5)
     {
-        return await _store.GetLogQualityReportAsync(
+        var sw = Stopwatch.StartNew();
+        var result = await _store.GetLogQualityReportAsync(
             DateTime.Parse(from, null, System.Globalization.DateTimeStyles.RoundtripKind),
             DateTime.Parse(to, null, System.Globalization.DateTimeStyles.RoundtripKind),
             source, sampleSize);
+        sw.Stop();
+        _tracker.Record(new McpCallRecord("audit_log_quality", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        return result;
     }
 
     [McpServerTool(Name = "get_message_templates"), Description("List all distinct message templates. Use this to discover what event types exist before filtering with search_logs(messageTemplate: ...).")]
     public async Task<object> GetMessageTemplates(
         [Description("Filter by source/service name")] string? source = null)
     {
-        return await _store.GetMessageTemplatesAsync(source);
+        var sw = Stopwatch.StartNew();
+        var result = await _store.GetMessageTemplatesAsync(source);
+        sw.Stop();
+        _tracker.Record(new McpCallRecord("get_message_templates", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        return result;
     }
 
     [McpServerTool(Name = "get_property_values"), Description("List distinct values for a structured log property key. Use when you know a property exists but need to see what values to filter on.")]
@@ -180,10 +237,14 @@ public sealed class LogTools
         [Description("Filter by source/service name")] string? source = null,
         [Description("Maximum number of distinct values to return (default 50)")] int limit = 50)
     {
-        return await _store.GetPropertyValuesAsync(key,
+        var sw = Stopwatch.StartNew();
+        var result = await _store.GetPropertyValuesAsync(key,
             DateTime.Parse(from, null, System.Globalization.DateTimeStyles.RoundtripKind),
             DateTime.Parse(to, null, System.Globalization.DateTimeStyles.RoundtripKind),
             source, limit);
+        sw.Stop();
+        _tracker.Record(new McpCallRecord("get_property_values", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        return result;
     }
 
     private static object ToResponse(LogEvent e) => new
@@ -201,7 +262,10 @@ public sealed class LogTools
     [McpServerTool(Name = "clear_logs"), Description("Delete all log events from the store. Use at the start of a new debugging session to clear logs from previous sessions.")]
     public async Task<string> ClearLogs()
     {
+        var sw = Stopwatch.StartNew();
         await _store.ClearAllAsync();
+        sw.Stop();
+        _tracker.Record(new McpCallRecord("clear_logs", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
         return "Log store cleared.";
     }
 
@@ -212,9 +276,13 @@ public sealed class LogTools
         [Description("Minimum error count per bucket to report (default 10)")] int threshold = 10,
         [Description("Bucket size in minutes (default 5)")] int bucketMinutes = 5)
     {
-        return await _store.GetErrorSpikesAsync(
+        var sw = Stopwatch.StartNew();
+        var result = await _store.GetErrorSpikesAsync(
             DateTime.Parse(from, null, System.Globalization.DateTimeStyles.RoundtripKind),
             DateTime.Parse(to, null, System.Globalization.DateTimeStyles.RoundtripKind),
             threshold, bucketMinutes);
+        sw.Stop();
+        _tracker.Record(new McpCallRecord("get_error_spikes", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        return result;
     }
 }

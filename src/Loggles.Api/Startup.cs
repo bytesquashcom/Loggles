@@ -6,6 +6,7 @@ using Loggles.Core.Interfaces;
 using Loggles.Infrastructure.BackgroundServices;
 using Loggles.Infrastructure.Persistence;
 using Loggles.Infrastructure.Queue;
+using Loggles.Infrastructure.Tracking;
 using Microsoft.AspNetCore.HttpLogging;
 using ModelContextProtocol.Server;
 using Microsoft.Extensions.Options;
@@ -80,6 +81,7 @@ public sealed class Startup
         var storageOptions = _configuration.GetSection("Storage").Get<StorageOptions>() ?? new StorageOptions();
 
         // Core services
+        services.AddSingleton<IMcpCallTracker, InMemoryMcpCallTracker>();
         services.AddSingleton<IIngestionQueue, InMemoryIngestionQueue>();
         services.AddSingleton<ILogStore>(_ => storageOptions.IsPostgres
             ? new PostgresLogStore(storageOptions.ConnectionString)
@@ -105,6 +107,9 @@ public sealed class Startup
     public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
     {
         // Debug: log all requests
+
+        app.UseDefaultFiles();
+        app.UseStaticFiles();
 
         app.UseRouting();
         var mcpOptions = _configuration.GetSection("Mcp").Get<McpOptions>() ?? new McpOptions();

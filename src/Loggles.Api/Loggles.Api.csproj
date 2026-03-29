@@ -21,10 +21,5 @@
     <InternalsVisibleTo Include="Loggles.Tests" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Content Update="wwwroot\index.html">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
 
 </Project>

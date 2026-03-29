@@ -13,23 +13,6 @@ steps:
       - dotnet restore src/Loggles.Tests/Loggles.Tests.csproj
       - dotnet test src/Loggles.Tests/Loggles.Tests.csproj --configuration Release --no-restore
 
-  # ── Docker: :latest on every merge to main ──────────────────────────────────
-  - name: docker-latest
-    image: woodpeckerci/plugin-kaniko
-    settings:
-      registry: ghcr.io
-      repo: ghcr.io/bytesquashcom/loggles
-      username:
-        from_secret: GITHUB_USERNAME
-      password:
-        from_secret: GITHUB_TOKEN
-      dockerfile: src/Dockerfile
-      context: src/
-      tags: latest
-    when:
-      - event: push
-        branch: main
-
   # ── Docker: versioned tag + :latest (stable) or :beta (pre-release) ─────────
   - name: docker-release
     image: docker:cli

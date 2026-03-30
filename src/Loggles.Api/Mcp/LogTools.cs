@@ -54,8 +54,9 @@ public sealed class LogTools
         var sw = Stopwatch.StartNew();
         var result = await _store.SearchAsync(query);
         sw.Stop();
-        _tracker.Record(new McpCallRecord("search_logs", DateTime.UtcNow, sw.ElapsedMilliseconds, result.Items.Count()));
-        return new { Items = ToResponse(result.Items), result.NextPageToken };
+        var response = new { Items = ToResponse(result.Items), result.NextPageToken };
+        _tracker.Record(new McpCallRecord("search_logs", DateTime.UtcNow, sw.ElapsedMilliseconds, result.Items.Count(), EstimateTokens(response)));
+        return response;
     }
 
     [McpServerTool(Name = "get_log_by_id"), Description("Retrieve a single log event by its ID.")]
@@ -64,8 +65,9 @@ public sealed class LogTools
         var sw = Stopwatch.StartNew();
         var log = await _store.GetByIdAsync(id);
         sw.Stop();
-        _tracker.Record(new McpCallRecord("get_log_by_id", DateTime.UtcNow, sw.ElapsedMilliseconds, log is null ? 0 : 1));
-        return log is null ? null : ToResponse(log);
+        var response = log is null ? null : ToResponse(log);
+        _tracker.Record(new McpCallRecord("get_log_by_id", DateTime.UtcNow, sw.ElapsedMilliseconds, log is null ? 0 : 1, response is null ? 0 : EstimateTokens(response)));
+        return response;
     }
 
     [McpServerTool(Name = "get_services"), Description("List all distinct service/source names that have emitted logs.")]
@@ -74,7 +76,7 @@ public sealed class LogTools
         var sw = Stopwatch.StartNew();
         var result = await _store.GetServicesAsync();
         sw.Stop();
-        _tracker.Record(new McpCallRecord("get_services", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        _tracker.Record(new McpCallRecord("get_services", DateTime.UtcNow, sw.ElapsedMilliseconds, null, EstimateTokens(result)));
         return result;
     }
 
@@ -84,7 +86,7 @@ public sealed class LogTools
         var sw = Stopwatch.StartNew();
         var result = await _store.GetLogLevelsAsync();
         sw.Stop();
-        _tracker.Record(new McpCallRecord("get_log_levels", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        _tracker.Record(new McpCallRecord("get_log_levels", DateTime.UtcNow, sw.ElapsedMilliseconds, null, EstimateTokens(result)));
         return result;
     }
 
@@ -94,7 +96,7 @@ public sealed class LogTools
         var sw = Stopwatch.StartNew();
         var result = await _store.GetPropertiesAsync();
         sw.Stop();
-        _tracker.Record(new McpCallRecord("get_properties", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        _tracker.Record(new McpCallRecord("get_properties", DateTime.UtcNow, sw.ElapsedMilliseconds, null, EstimateTokens(result)));
         return result;
     }
 
@@ -110,7 +112,7 @@ public sealed class LogTools
             DateTime.Parse(to, null, System.Globalization.DateTimeStyles.RoundtripKind),
             source);
         sw.Stop();
-        _tracker.Record(new McpCallRecord("get_log_stats", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        _tracker.Record(new McpCallRecord("get_log_stats", DateTime.UtcNow, sw.ElapsedMilliseconds, null, EstimateTokens(result)));
         return result;
     }
 
@@ -121,8 +123,9 @@ public sealed class LogTools
         var sw = Stopwatch.StartNew();
         var logs = await _store.GetLogsByTraceIdAsync(traceId);
         sw.Stop();
-        _tracker.Record(new McpCallRecord("get_logs_by_trace_id", DateTime.UtcNow, sw.ElapsedMilliseconds, logs.Count));
-        return ToResponse(logs);
+        var response = ToResponse(logs);
+        _tracker.Record(new McpCallRecord("get_logs_by_trace_id", DateTime.UtcNow, sw.ElapsedMilliseconds, logs.Count, EstimateTokens(response)));
+        return response;
     }
 
     [McpServerTool(Name = "get_related_logs"), Description("Get logs within a time window around a specific log event, useful for understanding context.")]
@@ -133,8 +136,9 @@ public sealed class LogTools
         var sw = Stopwatch.StartNew();
         var logs = await _store.GetRelatedLogsAsync(id, windowSeconds);
         sw.Stop();
-        _tracker.Record(new McpCallRecord("get_related_logs", DateTime.UtcNow, sw.ElapsedMilliseconds, logs.Count));
-        return ToResponse(logs);
+        var response = ToResponse(logs);
+        _tracker.Record(new McpCallRecord("get_related_logs", DateTime.UtcNow, sw.ElapsedMilliseconds, logs.Count, EstimateTokens(response)));
+        return response;
     }
 
     [McpServerTool(Name = "get_recent_errors"), Description("Get the most recent error and critical log events.")]
@@ -145,8 +149,9 @@ public sealed class LogTools
         var sw = Stopwatch.StartNew();
         var logs = await _store.GetRecentErrorsAsync(n, source);
         sw.Stop();
-        _tracker.Record(new McpCallRecord("get_recent_errors", DateTime.UtcNow, sw.ElapsedMilliseconds, logs.Count));
-        return ToResponse(logs);
+        var response = ToResponse(logs);
+        _tracker.Record(new McpCallRecord("get_recent_errors", DateTime.UtcNow, sw.ElapsedMilliseconds, logs.Count, EstimateTokens(response)));
+        return response;
     }
 
     [McpServerTool(Name = "tail_logs"), Description("Get the most recent log events across all levels (like tail -f snapshot). Use from/to to scope to a specific window, e.g. post-deployment verification.")]
@@ -161,8 +166,9 @@ public sealed class LogTools
         var sw = Stopwatch.StartNew();
         var logs = await _store.TailLogsAsync(n, source, fromDt, toDt);
         sw.Stop();
-        _tracker.Record(new McpCallRecord("tail_logs", DateTime.UtcNow, sw.ElapsedMilliseconds, logs.Count));
-        return ToResponse(logs);
+        var response = ToResponse(logs);
+        _tracker.Record(new McpCallRecord("tail_logs", DateTime.UtcNow, sw.ElapsedMilliseconds, logs.Count, EstimateTokens(response)));
+        return response;
     }
 
     [McpServerTool(Name = "get_log_rate"), Description("Get log counts bucketed by time interval to observe traffic patterns.")]
@@ -179,7 +185,7 @@ public sealed class LogTools
             DateTime.Parse(to, null, System.Globalization.DateTimeStyles.RoundtripKind),
             bucketMinutes, source, levelMin);
         sw.Stop();
-        _tracker.Record(new McpCallRecord("get_log_rate", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        _tracker.Record(new McpCallRecord("get_log_rate", DateTime.UtcNow, sw.ElapsedMilliseconds, null, EstimateTokens(result)));
         return result;
     }
 
@@ -197,7 +203,7 @@ public sealed class LogTools
             DateTime.Parse(to, null, System.Globalization.DateTimeStyles.RoundtripKind),
             source, levelMin, topN);
         sw.Stop();
-        _tracker.Record(new McpCallRecord("find_log_patterns", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        _tracker.Record(new McpCallRecord("find_log_patterns", DateTime.UtcNow, sw.ElapsedMilliseconds, null, EstimateTokens(result)));
         return result;
     }
 
@@ -214,7 +220,7 @@ public sealed class LogTools
             DateTime.Parse(to, null, System.Globalization.DateTimeStyles.RoundtripKind),
             source, sampleSize);
         sw.Stop();
-        _tracker.Record(new McpCallRecord("audit_log_quality", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        _tracker.Record(new McpCallRecord("audit_log_quality", DateTime.UtcNow, sw.ElapsedMilliseconds, null, EstimateTokens(result)));
         return result;
     }
 
@@ -225,7 +231,7 @@ public sealed class LogTools
         var sw = Stopwatch.StartNew();
         var result = await _store.GetMessageTemplatesAsync(source);
         sw.Stop();
-        _tracker.Record(new McpCallRecord("get_message_templates", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        _tracker.Record(new McpCallRecord("get_message_templates", DateTime.UtcNow, sw.ElapsedMilliseconds, null, EstimateTokens(result)));
         return result;
     }
 
@@ -243,9 +249,12 @@ public sealed class LogTools
             DateTime.Parse(to, null, System.Globalization.DateTimeStyles.RoundtripKind),
             source, limit);
         sw.Stop();
-        _tracker.Record(new McpCallRecord("get_property_values", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        _tracker.Record(new McpCallRecord("get_property_values", DateTime.UtcNow, sw.ElapsedMilliseconds, null, EstimateTokens(result)));
         return result;
     }
+
+    private static int EstimateTokens(object value) =>
+        Math.Max(1, JsonSerializer.Serialize(value).Length / 4);
 
     private static object ToResponse(LogEvent e) => new
     {
@@ -265,7 +274,7 @@ public sealed class LogTools
         var sw = Stopwatch.StartNew();
         await _store.ClearAllAsync();
         sw.Stop();
-        _tracker.Record(new McpCallRecord("clear_logs", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        _tracker.Record(new McpCallRecord("clear_logs", DateTime.UtcNow, sw.ElapsedMilliseconds, null, null));
         return "Log store cleared.";
     }
 
@@ -282,7 +291,7 @@ public sealed class LogTools
             DateTime.Parse(to, null, System.Globalization.DateTimeStyles.RoundtripKind),
             threshold, bucketMinutes);
         sw.Stop();
-        _tracker.Record(new McpCallRecord("get_error_spikes", DateTime.UtcNow, sw.ElapsedMilliseconds, null));
+        _tracker.Record(new McpCallRecord("get_error_spikes", DateTime.UtcNow, sw.ElapsedMilliseconds, null, EstimateTokens(result)));
         return result;
     }
 }

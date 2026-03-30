@@ -35,7 +35,8 @@ public sealed class StatusController : ControllerBase
                 toolName = c.ToolName,
                 calledAt = c.CalledAt,
                 durationMs = c.DurationMs,
-                resultCount = c.ResultCount
+                resultCount = c.ResultCount,
+                estimatedTokens = c.EstimatedTokens
             })
         });
     }

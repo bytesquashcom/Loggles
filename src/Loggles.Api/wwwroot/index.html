@@ -144,8 +144,9 @@
             <td class="px-4 py-2 mono font-medium text-neutral-200">${esc(c.toolName)}</td>
             <td class="px-4 py-2 mono text-neutral-400">${fmtTime(c.calledAt)}</td>
             <td class="px-4 py-2 mono text-neutral-400">${c.durationMs}ms</td>
-            <td class="px-4 py-2 mono ${c.resultCount != null ? 'text-neutral-300' : 'text-neutral-600'}">
-              ${c.resultCount != null ? c.resultCount : '—'}
+            <td class="px-4 py-2 mono">
+              <span class="${c.resultCount != null ? 'text-neutral-300' : 'text-neutral-600'}">${c.resultCount != null ? c.resultCount : '—'}</span>
+              ${c.estimatedTokens != null ? `<span class="text-neutral-600 ml-1">~${fmtTok(c.estimatedTokens)}</span>` : ''}
             </td>
           `;
           tbody.appendChild(tr);
@@ -196,6 +197,12 @@
     function fmt(n) {
       if (n == null) return '—';
       return Number(n).toLocaleString();
+    }
+
+    function fmtTok(n) {
+      if (n == null) return '';
+      if (n >= 1000) return `${(n / 1000).toFixed(1)}k tok`;
+      return `${n} tok`;
     }
 
     function fmtTime(iso) {

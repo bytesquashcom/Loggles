@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Loggles</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'monospace'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, sans-serif; }
+    .mono { font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; }
+  </style>
+</head>
+<body class="bg-neutral-950 text-neutral-200 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-neutral-900 border-b border-neutral-800 px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <span class="text-lg font-bold tracking-tight text-white">Loggles</span>
+      <span class="text-neutral-500 text-xs">status</span>
+    </div>
+    <div id="refresh-indicator" class="text-xs text-neutral-600"></div>
+  </header>
+
+  <!-- Auth prompt -->
+  <div id="auth-prompt" class="hidden fixed inset-0 bg-neutral-950/90 flex items-center justify-center z-50">
+    <div class="bg-neutral-900 border border-neutral-700 rounded-lg p-6 w-full max-w-sm">
+      <h2 class="text-sm font-semibold text-white mb-1">API Key Required</h2>
+      <p class="text-xs text-neutral-500 mb-4">Enter the Loggles API key to access the dashboard.</p>
+      <input id="key-input" type="password" placeholder="Bearer token"
+        class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-neutral-500 mono mb-3" />
+      <button onclick="submitKey()"
+        class="w-full bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded px-3 py-2 transition-colors">
+        Connect
+      </button>
+      <p id="auth-error" class="hidden text-xs text-red-400 mt-2 text-center">Invalid API key.</p>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <main id="main" class="hidden px-6 py-6 max-w-5xl mx-auto">
+
+    <!-- Stats cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-3">
+        <div class="text-xs text-neutral-500 mb-1">Total Logs</div>
+        <div id="stat-total" class="text-xl font-bold text-white mono">—</div>
+      </div>
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-3">
+        <div class="text-xs text-neutral-500 mb-1">Last Log</div>
+        <div id="stat-last" class="text-xl font-bold text-white mono">—</div>
+      </div>
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-3">
+        <div class="text-xs text-neutral-500 mb-1">MCP Calls</div>
+        <div id="stat-calls" class="text-xl font-bold text-white mono">—</div>
+      </div>
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-3">
+        <div class="text-xs text-neutral-500 mb-1">Logs via MCP</div>
+        <div id="stat-mcp-logs" class="text-xl font-bold text-white mono">—</div>
+      </div>
+    </div>
+
+    <!-- MCP calls table -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-lg overflow-hidden">
+      <div class="px-4 py-3 border-b border-neutral-800 flex items-center justify-between">
+        <span class="text-sm font-semibold text-white">Recent MCP Calls</span>
+        <span class="text-xs text-neutral-600">last 50, newest first</span>
+      </div>
+      <div id="empty-state" class="hidden px-4 py-12 text-center text-neutral-600 text-sm">
+        No MCP calls recorded yet.
+      </div>
+      <table id="calls-table" class="w-full text-xs hidden">
+        <thead>
+          <tr class="border-b border-neutral-800 text-neutral-500 text-left">
+            <th class="px-4 py-2 font-medium">Tool</th>
+            <th class="px-4 py-2 font-medium">Called At</th>
+            <th class="px-4 py-2 font-medium">Duration</th>
+            <th class="px-4 py-2 font-medium">Results</th>
+          </tr>
+        </thead>
+        <tbody id="calls-body"></tbody>
+      </table>
+    </div>
+
+  </main>
+
+  <script>
+    const STORAGE_KEY = 'loggles_api_key';
+    let apiKey = localStorage.getItem(STORAGE_KEY) || '';
+    let refreshTimer = null;
+
+    function statusUrl() {
+      return apiKey ? `/status?access_token=${encodeURIComponent(apiKey)}` : '/status';
+    }
+
+    async function load() {
+      try {
+        const res = await fetch(statusUrl());
+        if (res.status === 401) {
+          showAuth();
+          return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        hideAuth();
+        render(data);
+        scheduleRefresh();
+      } catch (e) {
+        console.error('Failed to load status:', e);
+      }
+    }
+
+    function render(data) {
+      document.getElementById('main').classList.remove('hidden');
+
+      document.getElementById('stat-total').textContent = fmt(data.totalLogs);
+      document.getElementById('stat-last').textContent = data.lastLogReceivedAt ? ago(data.lastLogReceivedAt) : 'none';
+      document.getElementById('stat-calls').textContent = fmt(data.mcpCallCount);
+      document.getElementById('stat-mcp-logs').textContent = fmt(data.logsRetrievedByMcp);
+
+      const calls = data.recentCalls || [];
+      const tbody = document.getElementById('calls-body');
+      tbody.innerHTML = '';
+
+      if (calls.length === 0) {
+        document.getElementById('empty-state').classList.remove('hidden');
+        document.getElementById('calls-table').classList.add('hidden');
+      } else {
+        document.getElementById('empty-state').classList.add('hidden');
+        document.getElementById('calls-table').classList.remove('hidden');
+        calls.forEach(c => {
+          const tr = document.createElement('tr');
+          tr.className = 'border-b border-neutral-800/50 hover:bg-neutral-800/30 transition-colors';
+          tr.innerHTML = `
+            <td class="px-4 py-2 mono font-medium text-neutral-200">${esc(c.toolName)}</td>
+            <td class="px-4 py-2 mono text-neutral-400">${fmtTime(c.calledAt)}</td>
+            <td class="px-4 py-2 mono text-neutral-400">${c.durationMs}ms</td>
+            <td class="px-4 py-2 mono">
+              <span class="${c.resultCount != null ? 'text-neutral-300' : 'text-neutral-600'}">${c.resultCount != null ? c.resultCount : '—'}</span>
+              ${c.estimatedTokens != null ? `<span class="text-neutral-600 ml-1">~${fmtTok(c.estimatedTokens)}</span>` : ''}
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      const now = new Date().toLocaleTimeString();
+      document.getElementById('refresh-indicator').textContent = `updated ${now}`;
+    }
+
+    function scheduleRefresh() {
+      clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(load, 15000);
+    }
+
+    function showAuth() {
+      document.getElementById('main').classList.add('hidden');
+      document.getElementById('auth-prompt').classList.remove('hidden');
+      document.getElementById('auth-error').classList.add('hidden');
+      document.getElementById('key-input').focus();
+    }
+
+    function hideAuth() {
+      document.getElementById('auth-prompt').classList.add('hidden');
+    }
+
+    async function submitKey() {
+      const val = document.getElementById('key-input').value.trim();
+      if (!val) return;
+      const res = await fetch(`/status?access_token=${encodeURIComponent(val)}`);
+      if (res.status === 401) {
+        document.getElementById('auth-error').classList.remove('hidden');
+        return;
+      }
+      apiKey = val;
+      localStorage.setItem(STORAGE_KEY, apiKey);
+      document.getElementById('auth-error').classList.add('hidden');
+      const data = await res.json();
+      hideAuth();
+      render(data);
+      scheduleRefresh();
+    }
+
+    document.getElementById('key-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') submitKey();
+    });
+
+    function fmt(n) {
+      if (n == null) return '—';
+      return Number(n).toLocaleString();
+    }
+
+    function fmtTok(n) {
+      if (n == null) return '';
+      if (n >= 1000) return `${(n / 1000).toFixed(1)}k tok`;
+      return `${n} tok`;
+    }
+
+    function fmtTime(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    function ago(iso) {
+      if (!iso) return '—';
+      const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+      if (secs < 60) return `${secs}s ago`;
+      if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+      if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+      return `${Math.floor(secs / 86400)}d ago`;
+    }
+
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    load();
+  </script>
+</body>
+</html>

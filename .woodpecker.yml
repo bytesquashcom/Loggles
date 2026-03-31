@@ -26,7 +26,7 @@ steps:
     commands:
       - echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USERNAME" --password-stdin
       - VERSION=${CI_COMMIT_TAG#v}
-      - docker build -t "ghcr.io/bytesquashcom/loggles:$VERSION" -f src/Dockerfile src/
+      - docker build --no-cache -t "ghcr.io/bytesquashcom/loggles:$VERSION" -f src/Dockerfile src/
       - docker push "ghcr.io/bytesquashcom/loggles:$VERSION"
       - |
         if echo "$CI_COMMIT_TAG" | grep -q -- "-beta"; then
